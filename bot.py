@@ -1,71 +1,43 @@
-import asyncio
 import logging
-import os
-import re
-import aiohttp
-from aiogram import Bot, Dispatcher, types
+import asyncio
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
-from aiogram.filters.command import Command
-from aiogram.fsm.storage.memory import MemoryStorage
+import aiohttp
 
-# Bot tokenini olish
-TOKEN = os.getenv("BOT_TOKEN")  # Muhitdan token olish
-if not TOKEN:
-    raise ValueError("BOT_TOKEN muhit o‘zgaruvchisi topilmadi!")
+TOKEN = "8192351806:AAFHa5ks04YlHX5k3F3DBCXkNQJCpmKFu2o"
 
-# Logging sozlash
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
-# Bot va Dispatcher yaratish
-bot = Bot(token=TOKEN, parse_mode="HTML")
-dp = Dispatcher(storage=MemoryStorage())
-
-# TikTok havolalarini tekshirish regexi
-TIKTOK_REGEX = r"(https?://(?:www\.)?tiktok\.com/\S+)"
-
-# /start komandasi
-@dp.message_handler(Command("start"))
-async def send_welcome(message: Message):
-    await message.answer(
-        "👋 Assalomu alaykum!\n\n"
-        "TikTok videolarini yuklash uchun havolani yuboring."
-    )
-
-# TikTok video yuklab beruvchi funksiya
 async def download_tiktok_video(url: str):
-    api_url = "https://api.tikmate.app/api/lookup"
+    api_url = "https://www.tikwm.com/api/"
     params = {"url": url}
-
     async with aiohttp.ClientSession() as session:
         async with session.get(api_url, params=params) as response:
-            if response.status == 200:
-                json_response = await response.json()
-                if "videoUrl" in json_response:
-                    return json_response["videoUrl"]
+            if response.status != 200:
+                return None
+            data = await response.json()
+            if data.get("data") and data["data"].get("play"):
+                return data["data"]["play"]
             return None
 
-# TikTok havolalarini qabul qilish
-@dp.message_handler()
-async def handle_tiktok_link(message: Message):
-    match = re.search(TIKTOK_REGEX, message.text)
-    if match:
-        url = match.group(1)
-        await message.answer("🔄 Yuklab olinmoqda, biroz kuting...")
+@dp.message(F.text.startswith("/start"))
+async def send_welcome(message: Message):
+    await message.reply("Salom! TikTok videolarini yuklab olish uchun menga video havolasini yuboring.")
 
-        video_url = await download_tiktok_video(url)
-        if video_url:
-            await message.answer_video(video_url, caption="✅ TikTok videongiz tayyor!")
-        else:
-            await message.answer("❌ Xatolik: Videoni yuklab bo‘lmadi.")
+@dp.message(F.text.contains("tiktok.com"))
+async def tiktok_download(message: Message):
+    await message.reply("⏳ Yuklab olinmoqda, iltimos kuting...")
+    video_url = await download_tiktok_video(message.text)
+    if video_url:
+        await message.reply_video(video_url, caption="✅ Mana video!")
     else:
-        await message.answer("❌ Noto‘g‘ri havola. Iltimos, haqiqiy TikTok havolasini yuboring.")
+        await message.reply("❌ Video yuklab olinmadi. URL to'g'ri ekanligini tekshiring!")
 
-# Asosiy ishga tushirish funksiyasi
 async def main():
-    await bot.delete_webhook(drop_pending_updates=True)  # Webhookni o‘chirish
-    print("✅ Bot ishga tushdi!")
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
-# Kodni ishga tushirish
 if __name__ == "__main__":
     asyncio.run(main())
