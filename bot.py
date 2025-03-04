@@ -5,9 +5,10 @@ import re
 import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
-from aiogram.filters import Command
+from aiogram.filters.command import Command
+from aiogram.fsm.storage.memory import MemoryStorage
 
-# Bot tokenni olish
+# Bot tokenini olish
 TOKEN = os.getenv("BOT_TOKEN")  # Muhitdan token olish
 if not TOKEN:
     raise ValueError("BOT_TOKEN muhit o‘zgaruvchisi topilmadi!")
@@ -16,35 +17,35 @@ if not TOKEN:
 logging.basicConfig(level=logging.INFO)
 
 # Bot va Dispatcher yaratish
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
+bot = Bot(token=TOKEN, parse_mode="HTML")
+dp = Dispatcher(storage=MemoryStorage())
 
 # TikTok havolalarini tekshirish regexi
 TIKTOK_REGEX = r"(https?://(?:www\.)?tiktok\.com/\S+)"
 
 # /start komandasi
-@dp.message(Command("start"))
+@dp.message_handler(Command("start"))
 async def send_welcome(message: Message):
-    await message.answer("👋 Assalomu alaykum!\n\nTikTok videolarini yuklash uchun havolani yuboring.")
+    await message.answer(
+        "👋 Assalomu alaykum!\n\n"
+        "TikTok videolarini yuklash uchun havolani yuboring."
+    )
 
 # TikTok video yuklab beruvchi funksiya
 async def download_tiktok_video(url: str):
-    api_url = f"https://ssstik.io/api/ajax/search"
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    data = {"url": url, "locale": "en"}
+    api_url = "https://api.tikmate.app/api/lookup"
+    params = {"url": url}
 
     async with aiohttp.ClientSession() as session:
-        async with session.post(api_url, headers=headers, data=data) as response:
+        async with session.get(api_url, params=params) as response:
             if response.status == 200:
                 json_response = await response.json()
-                if "video_url" in json_response:
-                    return json_response["video_url"]
+                if "videoUrl" in json_response:
+                    return json_response["videoUrl"]
             return None
 
 # TikTok havolalarini qabul qilish
-@dp.message()
+@dp.message_handler()
 async def handle_tiktok_link(message: Message):
     match = re.search(TIKTOK_REGEX, message.text)
     if match:
@@ -62,7 +63,7 @@ async def handle_tiktok_link(message: Message):
 # Asosiy ishga tushirish funksiyasi
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)  # Webhookni o‘chirish
-    print("Bot ishga tushdi...")
+    print("✅ Bot ishga tushdi!")
     await dp.start_polling(bot)
 
 # Kodni ishga tushirish
